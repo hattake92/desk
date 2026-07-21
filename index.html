@@ -33,33 +33,19 @@
             background-size: cover;
             display: flex; justify-content: center; align-items: center;
             transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1s ease;
-            transform-origin: 25% 65%;
+            transform-origin: 80% 60%; /* Центр приближения точно на правый холодильник */
             z-index: 10; overflow: hidden;
         }
 
+        /* Невидимая кликабельная зона строго по холодильнику справа (безрамочная) */
         .fridge-click-area {
             position: absolute;
-            left: 5%;
-            top: 25%;
-            width: 25%;
-            height: 65%;
+            right: 2%;
+            top: 0%;
+            width: 35%;
+            height: 100%;
             cursor: pointer;
-            border-radius: 10px;
-            transition: 0.2s;
-        }
-        .fridge-click-area:hover {
-            box-shadow: inset 0 0 15px rgba(255,255,255,0.4);
-            background: rgba(255,255,255,0.05);
-        }
-
-        #mini-notes-container {
-            position: absolute;
-            left: 7.5%;
-            top: 30%;
-            width: 20%;
-            height: 55%;
-            pointer-events: none;
-            z-index: 5;
+            background: transparent;
         }
 
         /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА --- */
@@ -138,8 +124,8 @@
 
     <!-- СЦЕНА 1: Кухня с фото -->
     <div id="room-scene">
-        <div id="mini-notes-container"></div>
-        <div class="fridge-click-area" onclick="zoomToFridge()" title="Открыть холодильник"></div>
+        <!-- Кликабельная зона строго по холодильнику справа (абсолютно невидимая) -->
+        <div class="fridge-click-area" onclick="zoomToFridge()"></div>
     </div>
 
     <!-- СЦЕНА 2: Поверхность холодильника -->
@@ -209,43 +195,21 @@
                 color: noteInfo.color,
                 is_deleted: noteInfo.is_deleted
             }]);
-            updateMiniFridge();
         }
 
         const roomScene = document.getElementById('room-scene');
         const fridgeScene = document.getElementById('fridge-scene');
 
         function zoomToFridge() {
-            roomScene.style.transform = 'scale(3) translateX(20%)';
+            // Приближение точно на правую сторону к холодильнику
+            roomScene.style.transform = 'scale(2.8) translate(-32%, -5%)';
             roomScene.style.opacity = '0';
             setTimeout(() => { fridgeScene.style.opacity = '1'; fridgeScene.style.pointerEvents = 'auto'; }, 600);
         }
 
         function zoomOut() {
             fridgeScene.style.opacity = '0'; fridgeScene.style.pointerEvents = 'none';
-            setTimeout(() => { roomScene.style.transform = 'scale(1) translateX(0)'; roomScene.style.opacity = '1'; }, 500);
-        }
-
-        function updateMiniFridge() {
-            const miniContainer = document.getElementById('mini-notes-container');
-            miniContainer.innerHTML = '';
-            
-            notesData.forEach((n, index) => {
-                if(n.is_deleted) return;
-                const dot = document.createElement('div');
-                dot.style.position = 'absolute';
-                const col = index % 2;
-                const row = Math.floor(index / 2);
-                dot.style.left = (10 + col * 48) + '%';
-                dot.style.top = (10 + row * 28) + '%';
-                dot.style.width = '42%';
-                dot.style.height = '24%';
-                dot.style.backgroundColor = n.color;
-                dot.style.transform = `rotate(${n.rotation || 0}deg)`;
-                dot.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.4)';
-                dot.style.borderRadius = '2px';
-                miniContainer.appendChild(dot);
-            });
+            setTimeout(() => { roomScene.style.transform = 'scale(1) translate(0, 0)'; roomScene.style.opacity = '1'; }, 500);
         }
 
         const container = document.getElementById('notes-container');
@@ -255,7 +219,6 @@
             notesData.forEach(note => {
                 if(!note.is_deleted) createNoteDOM(note);
             });
-            updateMiniFridge();
         }
 
         function createNoteDOM(noteInfo) {
