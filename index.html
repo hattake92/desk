@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Наш Дом</title>
+    <title>Наш холодильник</title>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Подключаем клиент Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,13 +21,8 @@
             width: 300px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
         .auth-box h2 { font-family: 'Caveat', cursive; font-size: 32px; margin-bottom: 20px; }
-        .auth-box input {
-            width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;
-        }
-        .auth-box button {
-            width: 100%; padding: 10px; background: #333; color: white; border: none;
-            border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.2s;
-        }
+        .auth-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
+        .auth-box button { width: 100%; padding: 10px; background: #333; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.2s; }
         .auth-box button:hover { background: #555; }
         #auth-error { color: red; font-size: 14px; margin-top: 10px; display: none; }
 
@@ -47,9 +41,14 @@
             box-shadow: inset -15px -15px 30px rgba(0,0,0,0.05), 10px 10px 20px rgba(0,0,0,0.2);
         }
         .fridge-object:hover { transform: scale(1.02); }
-        .fridge-object::before { content: ''; position: absolute; top: 30%; left: 0; width: 100%; height: 2px; background: #cfd6da; }
-        .fridge-handle-top { position: absolute; top: 10%; left: 20px; width: 8px; height: 60px; background: #b0bec5; border-radius: 5px; }
-        .fridge-handle-bottom { position: absolute; top: 35%; left: 20px; width: 8px; height: 120px; background: #b0bec5; border-radius: 5px; }
+        .fridge-object::before { content: ''; position: absolute; top: 30%; left: 0; width: 100%; height: 2px; background: #cfd6da; z-index: 5;}
+        .fridge-handle-top { position: absolute; top: 10%; left: 20px; width: 8px; height: 60px; background: #b0bec5; border-radius: 5px; z-index: 5;}
+        .fridge-handle-bottom { position: absolute; top: 35%; left: 20px; width: 8px; height: 120px; background: #b0bec5; border-radius: 5px; z-index: 5;}
+        
+        #mini-notes-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            border-radius: 13px; overflow: hidden; pointer-events: none; z-index: 2;
+        }
 
         /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА --- */
         #fridge-scene {
@@ -70,17 +69,35 @@
         .draggable { position: absolute; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; user-select: none; }
         .draggable:active { cursor: grabbing; }
         .note {
-            width: 220px; min-height: 200px; padding: 35px 20px 20px; box-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+            padding: 35px 20px 20px; box-shadow: 2px 4px 10px rgba(0,0,0,0.2);
             font-size: 24px; line-height: 1.2; color: #333; position: relative;
+            resize: both; overflow: auto; display: flex; flex-direction: column;
         }
+        .note::-webkit-scrollbar { width: 0px; background: transparent; }
+        
         .note::before {
             content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
             width: 80px; height: 25px; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(2px); border-radius: 2px;
         }
         .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; color: rgba(0,0,0,0.3); font-size: 16px; cursor: pointer; z-index: 10; transition: 0.2s; }
         .delete-btn:hover { color: red; transform: scale(1.2); }
-        .editable { outline: none; cursor: text; min-height: 30px; white-space: pre-wrap; }
+        
+        .editable { outline: none; cursor: text; white-space: pre-wrap; width: 100%; }
+        .editable:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
         .editable:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+        
+        .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; }
+        .note-body { flex-grow: 1; min-height: 30px; }
+        .note-photo { width: 100%; max-height: 60%; object-fit: contain; margin-bottom: 10px; border-radius: 5px; pointer-events: none; }
+
+        /* Стили для чекбоксов */
+        .checklist-container { display: flex; flex-direction: column; gap: 8px; margin-top: 5px; }
+        .checklist-item { display: flex; align-items: center; gap: 8px; font-size: 22px; }
+        .checklist-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #333; }
+        .checklist-item input[type="text"] { border: none; background: transparent; outline: none; font-family: 'Caveat', cursive; font-size: 22px; width: 100%; }
+        .checklist-item.completed span, .checklist-item.completed input[type="text"] { text-decoration: line-through; color: #777; }
+        .add-item-btn { background: rgba(0,0,0,0.05); border: none; padding: 4px 10px; border-radius: 10px; cursor: pointer; font-family: 'Caveat', cursive; font-size: 18px; margin-top: 10px; align-self: flex-start; }
+        .add-item-btn:hover { background: rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
@@ -88,7 +105,7 @@
     <!-- Экран входа -->
     <div id="auth-overlay">
         <div class="auth-box">
-            <h2>Наш Дом</h2>
+            <h2>Наш холодильник</h2>
             <input type="email" id="email" placeholder="Email">
             <input type="password" id="password" placeholder="Пароль">
             <button onclick="login()">Войти</button>
@@ -102,6 +119,7 @@
         <div class="fridge-object" onclick="zoomToFridge()">
             <div class="fridge-handle-top"></div>
             <div class="fridge-handle-bottom"></div>
+            <div id="mini-notes-container"></div>
         </div>
     </div>
 
@@ -109,25 +127,25 @@
     <div id="fridge-scene">
         <div class="controls">
             <button class="btn" onclick="zoomOut()">⬅ В комнату</button>
-            <button class="btn" onclick="addNote()">+ Записка</button>
+            <button class="btn" onclick="addNote('text')">+ Записка</button>
+            <button class="btn" onclick="addNote('list')">+ Список</button>
+            <button class="btn" onclick="triggerPhotoUpload()">+ Фото</button>
             <button class="btn btn-red" onclick="logout()">Выйти</button>
         </div>
         <div id="notes-container"></div>
     </div>
 
+    <input type="file" id="file-input" accept="image/*" style="display: none;">
+
     <script>
-        // Подключение к твоей базе данных
         const SUPABASE_URL = 'https://omnrboyfacfgauuatluq.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_z7VuggWQxv7VU6Q5wwzVuQ_aI6nUqO7';
-        
-        // ИСПРАВЛЕНИЕ: Назвали переменную 'db', чтобы она не конфликтовала с библиотекой
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let notesData = [];
         const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
         let highestZ = 1;
 
-        // --- АВТОРИЗАЦИЯ ---
         async function checkSession() {
             const { data: { session } } = await db.auth.getSession();
             if (session) {
@@ -140,12 +158,9 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('auth-error');
-            
-            const { data, error } = await db.auth.signInWithPassword({ email, password });
-            
+            const { error } = await db.auth.signInWithPassword({ email, password });
             if (error) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = error.message;
+                errorDiv.style.display = 'block'; errorDiv.innerText = error.message;
             } else {
                 errorDiv.style.display = 'none';
                 document.getElementById('auth-overlay').style.opacity = '0';
@@ -154,14 +169,9 @@
             }
         }
 
-        async function logout() {
-            await db.auth.signOut();
-            window.location.reload();
-        }
-
+        async function logout() { await db.auth.signOut(); window.location.reload(); }
         checkSession();
 
-        // --- БАЗА ДАННЫХ ---
         async function loadNotes() {
             const { data, error } = await db.from('fridge_notes').select('*').eq('is_deleted', false);
             if (!error && data) {
@@ -173,43 +183,63 @@
         async function saveNoteToDB(noteInfo) {
             await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
-                text_content: noteInfo.text_content,
+                title: noteInfo.title || '',
+                text_content: noteInfo.text_content || '',
+                image_url: noteInfo.image_url || '',
+                list_items: noteInfo.list_items || [],
                 x_pos: noteInfo.x_pos,
                 y_pos: noteInfo.y_pos,
                 rotation: noteInfo.rotation,
+                width: noteInfo.width || 220,
+                height: noteInfo.height || 200,
                 color: noteInfo.color,
                 is_deleted: noteInfo.is_deleted
             }]);
+            updateMiniFridge();
         }
 
-        // --- ЛОГИКА КАМЕРЫ ---
         const roomScene = document.getElementById('room-scene');
         const fridgeScene = document.getElementById('fridge-scene');
 
         function zoomToFridge() {
             roomScene.style.transform = 'scale(4) translateY(20%)';
             roomScene.style.opacity = '0';
-            setTimeout(() => {
-                fridgeScene.style.opacity = '1';
-                fridgeScene.style.pointerEvents = 'auto';
-            }, 600);
+            setTimeout(() => { fridgeScene.style.opacity = '1'; fridgeScene.style.pointerEvents = 'auto'; }, 600);
         }
 
         function zoomOut() {
-            fridgeScene.style.opacity = '0';
-            fridgeScene.style.pointerEvents = 'none';
-            setTimeout(() => {
-                roomScene.style.transform = 'scale(1) translateY(0)';
-                roomScene.style.opacity = '1';
-            }, 500);
+            fridgeScene.style.opacity = '0'; fridgeScene.style.pointerEvents = 'none';
+            setTimeout(() => { roomScene.style.transform = 'scale(1) translateY(0)'; roomScene.style.opacity = '1'; }, 500);
         }
 
-        // --- ЛОГИКА СТИКЕРОВ ---
+        function updateMiniFridge() {
+            const miniContainer = document.getElementById('mini-notes-container');
+            miniContainer.innerHTML = '';
+            const scaleX = 300 / window.innerWidth;
+            const scaleY = 500 / window.innerHeight;
+            
+            notesData.forEach(n => {
+                if(n.is_deleted) return;
+                const dot = document.createElement('div');
+                dot.style.position = 'absolute';
+                dot.style.left = (n.x_pos * scaleX) + 'px';
+                dot.style.top = (n.y_pos * scaleY) + 'px';
+                dot.style.width = ((n.width || 220) * scaleX) + 'px';
+                dot.style.height = ((n.height || 200) * scaleY) + 'px';
+                dot.style.backgroundColor = n.color;
+                dot.style.transform = `rotate(${n.rotation}deg)`;
+                dot.style.boxShadow = '1px 1px 2px rgba(0,0,0,0.3)';
+                dot.style.borderRadius = '2px';
+                miniContainer.appendChild(dot);
+            });
+        }
+
         const container = document.getElementById('notes-container');
 
         function renderNotes() {
             container.innerHTML = '';
             notesData.forEach(note => createNoteDOM(note));
+            updateMiniFridge();
         }
 
         function createNoteDOM(noteInfo) {
@@ -218,34 +248,117 @@
             note.style.backgroundColor = noteInfo.color;
             note.style.left = noteInfo.x_pos + 'px';
             note.style.top = noteInfo.y_pos + 'px';
-            note.dataset.id = noteInfo.id;
+            note.style.width = (noteInfo.width || 220) + 'px';
+            note.style.height = (noteInfo.height || 200) + 'px';
             note.style.transform = `rotate(${noteInfo.rotation}deg)`;
+            note.dataset.id = noteInfo.id;
             
+            let contentHtml = '';
+            if (noteInfo.image_url) {
+                contentHtml = `<img src="${noteInfo.image_url}" class="note-photo">`;
+            } else if (noteInfo.list_items && noteInfo.list_items.length > 0) {
+                contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
+                               <button class="add-item-btn" onclick="addListItem('${noteInfo.id}')">+ Пункт</button>`;
+            } else {
+                contentHtml = `<div class="editable note-body" contenteditable="true" spellcheck="false" data-field="text_content" placeholder="Текст...">${noteInfo.text_content || ''}</div>`;
+            }
+
             note.innerHTML = `
                 <button class="delete-btn" onclick="deleteNote('${noteInfo.id}')">✖</button>
-                <div class="editable" contenteditable="true" spellcheck="false">${noteInfo.text_content}</div>
+                <div class="editable note-title" contenteditable="true" spellcheck="false" data-field="title" placeholder="Заголовок...">${noteInfo.title || ''}</div>
+                ${contentHtml}
             `;
             
             container.appendChild(note);
             makeDraggable(note, noteInfo);
 
-            let timeout;
-            const editable = note.querySelector('.editable');
-            editable.addEventListener('input', (e) => {
-                clearTimeout(timeout);
-                noteInfo.text_content = e.target.innerHTML;
-                timeout = setTimeout(() => saveNoteToDB(noteInfo), 1000);
+            // Рендерим пункты списка, если это чек-лист
+            if (noteInfo.list_items && noteInfo.list_items.length > 0) {
+                renderChecklist(noteInfo);
+            }
+
+            let textTimeout;
+            note.querySelectorAll('.editable').forEach(el => {
+                el.addEventListener('input', (e) => {
+                    clearTimeout(textTimeout);
+                    const field = e.target.dataset.field;
+                    if(field) {
+                        noteInfo[field] = e.target.innerHTML;
+                        textTimeout = setTimeout(() => saveNoteToDB(noteInfo), 1000);
+                    }
+                });
+            });
+
+            let resizeTimeout;
+            new ResizeObserver(() => {
+                clearTimeout(resizeTimeout);
+                noteInfo.width = note.offsetWidth;
+                noteInfo.height = note.offsetHeight;
+                resizeTimeout = setTimeout(() => saveNoteToDB(noteInfo), 500);
+            }).observe(note);
+        }
+
+        function renderChecklist(noteInfo) {
+            const listContainer = document.getElementById(`checklist-${noteInfo.id}`);
+            if(!listContainer) return;
+            listContainer.innerHTML = '';
+
+            noteInfo.list_items.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `checklist-item ${item.completed ? 'completed' : ''}`;
+                itemDiv.innerHTML = `
+                    <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleItem('${noteInfo.id}', ${index})">
+                    <input type="text" value="${item.text}" placeholder="Пункт..." oninput="updateItemText('${noteInfo.id}', ${index}, this.value)">
+                `;
+                listContainer.appendChild(itemDiv);
             });
         }
 
-        async function addNote() {
+        window.addListItem = function(id) {
+            const note = notesData.find(n => n.id === id);
+            if(note) {
+                if(!note.list_items) note.list_items = [];
+                note.list_items.push({ text: '', completed: false });
+                renderChecklist(note);
+                saveNoteToDB(note);
+            }
+        };
+
+        window.toggleItem = function(id, index) {
+            const note = notesData.find(n => n.id === id);
+            if(note && note.list_items[index]) {
+                note.list_items[index].completed = !note.list_items[index].completed;
+                renderChecklist(note);
+                saveNoteToDB(note);
+            }
+        };
+
+        window.updateItemText = function(id, index, text) {
+            const note = notesData.find(n => n.id === id);
+            if(note && note.list_items[index]) {
+                note.list_items[index].text = text;
+                saveNoteToDB(note);
+            }
+        };
+
+        async function addNote(type, imageUrl = '') {
             const color = colors[Math.floor(Math.random() * colors.length)];
+            let listItems = [];
+            if(type === 'list') {
+                listItems = [{ text: 'Купить молоко', completed: false }, { text: 'Покормить кошку', completed: false }];
+            }
+
             const newNote = {
                 id: crypto.randomUUID(),
-                text_content: 'Новая записка...',
+                title: type === 'list' ? 'Список' : '',
+                text_content: imageUrl || type === 'list' ? '' : 'Новая записка...',
+                image_url: imageUrl,
+                list_items: listItems,
                 x_pos: Math.floor(Math.random() * (window.innerWidth - 300)) + 50,
                 y_pos: Math.floor(Math.random() * (window.innerHeight - 300)) + 100,
                 rotation: Math.floor(Math.random() * 10) - 5,
+                width: imageUrl ? 250 : 220,
+                height: imageUrl ? 350 : 220,
                 color: color,
                 is_deleted: false
             };
@@ -253,6 +366,19 @@
             notesData.push(newNote);
             createNoteDOM(newNote);
             await saveNoteToDB(newNote);
+        }
+
+        function triggerPhotoUpload() {
+            const input = document.getElementById('file-input');
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => addNote('photo', ev.target.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+            input.click();
         }
 
         async function deleteNote(id) {
@@ -265,12 +391,16 @@
             }
         }
 
-        // --- ЛОГИКА ПЕРЕТАСКИВАНИЯ ---
         function makeDraggable(element, noteInfo) {
             let isDragging = false, startX, startY, initialX, initialY;
 
             element.addEventListener('pointerdown', (e) => {
-                if(e.target.classList.contains('delete-btn') || e.target.classList.contains('editable')) return;
+                if(e.target.classList.contains('delete-btn') || e.target.classList.contains('editable') || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                
+                const rect = element.getBoundingClientRect();
+                const isResizeHandle = (e.clientX - rect.left) > rect.width - 25 && (e.clientY - rect.top) > rect.height - 25;
+                if(isResizeHandle) return;
+
                 isDragging = true;
                 highestZ++; element.style.zIndex = highestZ;
                 element.style.transform = `scale(1.05) rotate(${noteInfo.rotation}deg)`;
