@@ -26,31 +26,45 @@
         .auth-box button:hover { background: #555; }
         #auth-error { color: red; font-size: 14px; margin-top: 10px; display: none; }
 
-        /* --- СЦЕНА 1: КОМНАТА --- */
+        /* --- СЦЕНА 1: КУХНЯ С ФОТО --- */
         #room-scene {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: linear-gradient(to bottom, #f0e2d3 65%, #6e4b33 65%);
-            display: flex; justify-content: center; align-items: flex-end;
+            background: url('https://i.ibb.co/3ykJ8W0/kitchen.jpg') no-repeat center center;
+            background-size: cover;
+            display: flex; justify-content: center; align-items: center;
             transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1s ease;
-            transform-origin: center 60%; z-index: 10; overflow: hidden;
-        }
-        .fridge-shadow { position: absolute; bottom: 50px; width: 320px; height: 20px; background: rgba(0,0,0,0.3); border-radius: 50%; filter: blur(10px); }
-        .fridge-object {
-            position: relative; bottom: 70px; width: 300px; height: 500px; background: #e8ecef;
-            border-radius: 15px; border: 2px solid #cfd6da; cursor: pointer; transition: 0.3s;
-            box-shadow: inset -15px -15px 30px rgba(0,0,0,0.05), 10px 10px 20px rgba(0,0,0,0.2);
-        }
-        .fridge-object:hover { transform: scale(1.02); }
-        .fridge-object::before { content: ''; position: absolute; top: 30%; left: 0; width: 100%; height: 2px; background: #cfd6da; z-index: 5;}
-        .fridge-handle-top { position: absolute; top: 10%; left: 20px; width: 8px; height: 60px; background: #b0bec5; border-radius: 5px; z-index: 5;}
-        .fridge-handle-bottom { position: absolute; top: 35%; left: 20px; width: 8px; height: 120px; background: #b0bec5; border-radius: 5px; z-index: 5;}
-        
-        #mini-notes-container {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            border-radius: 13px; overflow: hidden; pointer-events: none; z-index: 2;
+            transform-origin: 25% 65%; /* Центр приближения — на холодильник слева */
+            z-index: 10; overflow: hidden;
         }
 
-        /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА (С прокруткой) --- */
+        /* Невидимая кликабельная зона точно поверх холодильника на фото */
+        .fridge-click-area {
+            position: absolute;
+            left: 5%;
+            top: 25%;
+            width: 25%;
+            height: 65%;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: 0.2s;
+        }
+        .fridge-click-area:hover {
+            box-shadow: inset 0 0 15px rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.05);
+        }
+
+        /* Контейнер для мини-стикеров прямо на дверце холодильника */
+        #mini-notes-container {
+            position: absolute;
+            left: 7.5%;
+            top: 30%;
+            width: 20%;
+            height: 55%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА --- */
         #fridge-scene {
             position: absolute; top: 0; left: 0; width: 100vw; min-height: 150vh;
             background: #e8ecef; opacity: 0; pointer-events: none; transition: opacity 1s ease; z-index: 20;
@@ -124,20 +138,18 @@
         </div>
     </div>
 
-    <!-- СЦЕНА 1: Комната -->
+    <!-- СЦЕНА 1: Кухня с фото -->
     <div id="room-scene">
-        <div class="fridge-shadow"></div>
-        <div class="fridge-object" onclick="zoomToFridge()">
-            <div class="fridge-handle-top"></div>
-            <div class="fridge-handle-bottom"></div>
-            <div id="mini-notes-container"></div>
-        </div>
+        <!-- Контейнер для мини-стикеров прямо на дверце холодильника на фото -->
+        <div id="mini-notes-container"></div>
+        <!-- Кликабельная зона поверх холодильника -->
+        <div class="fridge-click-area" onclick="zoomToFridge()" title="Открыть холодильник"></div>
     </div>
 
     <!-- СЦЕНА 2: Поверхность холодильника -->
     <div id="fridge-scene">
         <div class="controls">
-            <button class="btn" onclick="zoomOut()">⬅ В комнату</button>
+            <button class="btn" onclick="zoomOut()">⬅ К кухне</button>
             <button class="btn" onclick="addNote('text')">+ Записка</button>
             <button class="btn" onclick="addNote('list')">+ Список</button>
             <button class="btn" onclick="triggerPhotoUpload()">+ Фото</button>
@@ -208,14 +220,14 @@
         const fridgeScene = document.getElementById('fridge-scene');
 
         function zoomToFridge() {
-            roomScene.style.transform = 'scale(4) translateY(20%)';
+            roomScene.style.transform = 'scale(3) translateX(20%)';
             roomScene.style.opacity = '0';
             setTimeout(() => { fridgeScene.style.opacity = '1'; fridgeScene.style.pointerEvents = 'auto'; }, 600);
         }
 
         function zoomOut() {
             fridgeScene.style.opacity = '0'; fridgeScene.style.pointerEvents = 'none';
-            setTimeout(() => { roomScene.style.transform = 'scale(1) translateY(0)'; roomScene.style.opacity = '1'; }, 500);
+            setTimeout(() => { roomScene.style.transform = 'scale(1) translateX(0)'; roomScene.style.opacity = '1'; }, 500);
         }
 
         function updateMiniFridge() {
@@ -226,16 +238,15 @@
                 if(n.is_deleted) return;
                 const dot = document.createElement('div');
                 dot.style.position = 'absolute';
-                // Располагаем точки на мини-холодильнике аккуратной сеткой
                 const col = index % 2;
                 const row = Math.floor(index / 2);
-                dot.style.left = (20 + col * 130) + 'px';
-                dot.style.top = (40 + row * 100) + 'px';
-                dot.style.width = '110px';
-                dot.style.height = '85px';
+                dot.style.left = (10 + col * 48) + '%';
+                dot.style.top = (10 + row * 28) + '%';
+                dot.style.width = '42%';
+                dot.style.height = '24%';
                 dot.style.backgroundColor = n.color;
                 dot.style.transform = `rotate(${n.rotation || 0}deg)`;
-                dot.style.boxShadow = '1px 1px 2px rgba(0,0,0,0.3)';
+                dot.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.4)';
                 dot.style.borderRadius = '2px';
                 miniContainer.appendChild(dot);
             });
