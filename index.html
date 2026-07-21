@@ -88,9 +88,9 @@
         
         .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; }
         .note-body { flex-grow: 1; min-height: 30px; }
-        .note-photo { width: 100%; max-height: 60%; object-fit: contain; margin-bottom: 10px; border-radius: 5px; pointer-events: none; }
+        .note-photo { width: 100%; max-height: 50vh; object-fit: contain; margin-bottom: 10px; border-radius: 5px; pointer-events: none; }
 
-        /* Стили для чекбоксов */
+        /* Чекбоксы */
         .checklist-container { display: flex; flex-direction: column; gap: 8px; margin-top: 5px; }
         .checklist-item { display: flex; align-items: center; gap: 8px; font-size: 22px; }
         .checklist-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #333; }
@@ -215,17 +215,21 @@
         function updateMiniFridge() {
             const miniContainer = document.getElementById('mini-notes-container');
             miniContainer.innerHTML = '';
-            const scaleX = 300 / window.innerWidth;
-            const scaleY = 500 / window.innerHeight;
+            
+            // Базовые размеры большой сцены для точного соотнесения
+            const maxX = Math.max(window.innerWidth, 1000);
+            const maxY = Math.max(window.innerHeight, 800);
+            const scaleX = 300 / maxX;
+            const scaleY = 500 / maxY;
             
             notesData.forEach(n => {
                 if(n.is_deleted) return;
                 const dot = document.createElement('div');
                 dot.style.position = 'absolute';
-                dot.style.left = (n.x_pos * scaleX) + 'px';
-                dot.style.top = (n.y_pos * scaleY) + 'px';
-                dot.style.width = ((n.width || 220) * scaleX) + 'px';
-                dot.style.height = ((n.height || 200) * scaleY) + 'px';
+                dot.style.left = Math.min(Math.max((n.x_pos || 50) * scaleX, 0), 280) + 'px';
+                dot.style.top = Math.min(Math.max((n.y_pos || 50) * scaleY, 0), 480) + 'px';
+                dot.style.width = Math.min((n.width || 220) * scaleX, 100) + 'px';
+                dot.style.height = Math.min((n.height || 200) * scaleY, 100) + 'px';
                 dot.style.backgroundColor = n.color;
                 dot.style.transform = `rotate(${n.rotation}deg)`;
                 dot.style.boxShadow = '1px 1px 2px rgba(0,0,0,0.3)';
@@ -238,7 +242,9 @@
 
         function renderNotes() {
             container.innerHTML = '';
-            notesData.forEach(note => createNoteDOM(note));
+            notesData.forEach(note => {
+                if(!note.is_deleted) createNoteDOM(note);
+            });
             updateMiniFridge();
         }
 
@@ -246,11 +252,11 @@
             const note = document.createElement('div');
             note.className = 'draggable note';
             note.style.backgroundColor = noteInfo.color;
-            note.style.left = noteInfo.x_pos + 'px';
-            note.style.top = noteInfo.y_pos + 'px';
+            note.style.left = (noteInfo.x_pos || 50) + 'px';
+            note.style.top = (noteInfo.y_pos || 50) + 'px';
             note.style.width = (noteInfo.width || 220) + 'px';
             note.style.height = (noteInfo.height || 200) + 'px';
-            note.style.transform = `rotate(${noteInfo.rotation}deg)`;
+            note.style.transform = `rotate(${noteInfo.rotation || 0}deg)`;
             note.dataset.id = noteInfo.id;
             
             let contentHtml = '';
@@ -272,7 +278,6 @@
             container.appendChild(note);
             makeDraggable(note, noteInfo);
 
-            // Рендерим пункты списка, если это чек-лист
             if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 renderChecklist(noteInfo);
             }
@@ -345,7 +350,7 @@
             const color = colors[Math.floor(Math.random() * colors.length)];
             let listItems = [];
             if(type === 'list') {
-                listItems = [{ text: 'Купить молоко', completed: false }, { text: 'Покормить кошку', completed: false }];
+                listItems = [{ text: 'Купить молоко', completed: false }];
             }
 
             const newNote = {
@@ -354,11 +359,11 @@
                 text_content: imageUrl || type === 'list' ? '' : 'Новая записка...',
                 image_url: imageUrl,
                 list_items: listItems,
-                x_pos: Math.floor(Math.random() * (window.innerWidth - 300)) + 50,
-                y_pos: Math.floor(Math.random() * (window.innerHeight - 300)) + 100,
+                x_pos: Math.floor(Math.random() * (window.innerWidth - 400)) + 50,
+                y_pos: Math.floor(Math.random() * (window.innerHeight - 400)) + 50,
                 rotation: Math.floor(Math.random() * 10) - 5,
-                width: imageUrl ? 250 : 220,
-                height: imageUrl ? 350 : 220,
+                width: imageUrl ? 260 : 220,
+                height: imageUrl ? 320 : 200,
                 color: color,
                 is_deleted: false
             };
