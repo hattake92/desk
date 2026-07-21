@@ -29,15 +29,14 @@
         /* --- СЦЕНА 1: КУХНЯ С ФОТО --- */
         #room-scene {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: url('https://i.ibb.co/3ykJ8W0/kitchen.jpg') no-repeat center center;
+            background: url('kitchen.jpg') no-repeat center center;
             background-size: cover;
             display: flex; justify-content: center; align-items: center;
             transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1s ease;
-            transform-origin: 25% 65%; /* Центр приближения — на холодильник слева */
+            transform-origin: 25% 65%;
             z-index: 10; overflow: hidden;
         }
 
-        /* Невидимая кликабельная зона точно поверх холодильника на фото */
         .fridge-click-area {
             position: absolute;
             left: 5%;
@@ -53,7 +52,6 @@
             background: rgba(255,255,255,0.05);
         }
 
-        /* Контейнер для мини-стикеров прямо на дверце холодильника */
         #mini-notes-container {
             position: absolute;
             left: 7.5%;
@@ -140,9 +138,7 @@
 
     <!-- СЦЕНА 1: Кухня с фото -->
     <div id="room-scene">
-        <!-- Контейнер для мини-стикеров прямо на дверце холодильника на фото -->
         <div id="mini-notes-container"></div>
-        <!-- Кликабельная зона поверх холодильника -->
         <div class="fridge-click-area" onclick="zoomToFridge()" title="Открыть холодильник"></div>
     </div>
 
