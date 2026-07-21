@@ -119,7 +119,9 @@
         // Подключение к твоей базе данных
         const SUPABASE_URL = 'https://omnrboyfacfgauuatluq.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_z7VuggWQxv7VU6Q5wwzVuQ_aI6nUqO7';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // ИСПРАВЛЕНИЕ: Назвали переменную 'db', чтобы она не конфликтовала с библиотекой
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let notesData = [];
         const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
@@ -127,7 +129,7 @@
 
         // --- АВТОРИЗАЦИЯ ---
         async function checkSession() {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await db.auth.getSession();
             if (session) {
                 document.getElementById('auth-overlay').style.display = 'none';
                 loadNotes();
@@ -139,7 +141,7 @@
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('auth-error');
             
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await db.auth.signInWithPassword({ email, password });
             
             if (error) {
                 errorDiv.style.display = 'block';
@@ -153,7 +155,7 @@
         }
 
         async function logout() {
-            await supabase.auth.signOut();
+            await db.auth.signOut();
             window.location.reload();
         }
 
@@ -161,7 +163,7 @@
 
         // --- БАЗА ДАННЫХ ---
         async function loadNotes() {
-            const { data, error } = await supabase.from('fridge_notes').select('*').eq('is_deleted', false);
+            const { data, error } = await db.from('fridge_notes').select('*').eq('is_deleted', false);
             if (!error && data) {
                 notesData = data;
                 renderNotes();
@@ -169,7 +171,7 @@
         }
 
         async function saveNoteToDB(noteInfo) {
-            await supabase.from('fridge_notes').upsert([{
+            await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
                 text_content: noteInfo.text_content,
                 x_pos: noteInfo.x_pos,
