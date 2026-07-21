@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Наш Дом</title>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Подключаем клиент Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Caveat', cursive; overflow: hidden; background: #222; }
+
+        /* --- ЭКРАН АВТОРИЗАЦИИ --- */
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #222; display: flex; justify-content: center; align-items: center;
+            z-index: 1000; font-family: sans-serif; transition: opacity 0.5s ease;
+        }
+        .auth-box {
+            background: #fff; padding: 40px; border-radius: 10px; text-align: center;
+            width: 300px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .auth-box h2 { font-family: 'Caveat', cursive; font-size: 32px; margin-bottom: 20px; }
+        .auth-box input {
+            width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;
+        }
+        .auth-box button {
+            width: 100%; padding: 10px; background: #333; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.2s;
+        }
+        .auth-box button:hover { background: #555; }
+        #auth-error { color: red; font-size: 14px; margin-top: 10px; display: none; }
+
+        /* --- СЦЕНА 1: КОМНАТА --- */
+        #room-scene {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(to bottom, #f0e2d3 65%, #6e4b33 65%);
+            display: flex; justify-content: center; align-items: flex-end;
+            transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1s ease;
+            transform-origin: center 60%; z-index: 10;
+        }
+        .fridge-shadow { position: absolute; bottom: 50px; width: 320px; height: 20px; background: rgba(0,0,0,0.3); border-radius: 50%; filter: blur(10px); }
+        .fridge-object {
+            position: relative; bottom: 70px; width: 300px; height: 500px; background: #e8ecef;
+            border-radius: 15px; border: 2px solid #cfd6da; cursor: pointer; transition: 0.3s;
+            box-shadow: inset -15px -15px 30px rgba(0,0,0,0.05), 10px 10px 20px rgba(0,0,0,0.2);
+        }
+        .fridge-object:hover { transform: scale(1.02); }
+        .fridge-object::before { content: ''; position: absolute; top: 30%; left: 0; width: 100%; height: 2px; background: #cfd6da; }
+        .fridge-handle-top { position: absolute; top: 10%; left: 20px; width: 8px; height: 60px; background: #b0bec5; border-radius: 5px; }
+        .fridge-handle-bottom { position: absolute; top: 35%; left: 20px; width: 8px; height: 120px; background: #b0bec5; border-radius: 5px; }
+
+        /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА --- */
+        #fridge-scene {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #e8ecef; opacity: 0; pointer-events: none; transition: opacity 1s ease; z-index: 20; overflow: hidden;
+        }
+        .controls {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,255,255,0.9); padding: 10px 20px; border-radius: 30px; 
+            display: flex; gap: 15px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        button.btn { background: #333; color: #fff; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-family: sans-serif; font-size: 14px; font-weight: bold; transition: 0.2s; }
+        button.btn:hover { background: #555; transform: translateY(-2px); }
+        button.btn-red { background: #d32f2f; }
+        button.btn-red:hover { background: #b71c1c; }
+
+        /* --- СТИКЕРЫ --- */
+        .draggable { position: absolute; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; user-select: none; }
+        .draggable:active { cursor: grabbing; }
+        .note {
+            width: 220px; min-height: 200px; padding: 35px 20px 20px; box-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+            font-size: 24px; line-height: 1.2; color: #333; position: relative;
+        }
+        .note::before {
+            content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
+            width: 80px; height: 25px; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(2px); border-radius: 2px;
+        }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; color: rgba(0,0,0,0.3); font-size: 16px; cursor: pointer; z-index: 10; transition: 0.2s; }
+        .delete-btn:hover { color: red; transform: scale(1.2); }
+        .editable { outline: none; cursor: text; min-height: 30px; white-space: pre-wrap; }
+        .editable:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- Экран входа -->
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>Наш Дом</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Пароль">
+            <button onclick="login()">Войти</button>
+            <div id="auth-error">Неверный логин или пароль</div>
+        </div>
+    </div>
+
+    <!-- СЦЕНА 1: Комната -->
+    <div id="room-scene">
+        <div class="fridge-shadow"></div>
+        <div class="fridge-object" onclick="zoomToFridge()">
+            <div class="fridge-handle-top"></div>
+            <div class="fridge-handle-bottom"></div>
+        </div>
+    </div>
+
+    <!-- СЦЕНА 2: Поверхность холодильника -->
+    <div id="fridge-scene">
+        <div class="controls">
+            <button class="btn" onclick="zoomOut()">⬅ В комнату</button>
+            <button class="btn" onclick="addNote()">+ Записка</button>
+            <button class="btn btn-red" onclick="logout()">Выйти</button>
+        </div>
+        <div id="notes-container"></div>
+    </div>
+
+    <script>
+        // Подключение к твоей базе данных
+        const SUPABASE_URL = 'https://omnrboyfacfgauuatluq.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_z7VuggWQxv7VU6Q5wwzVuQ_aI6nUqO7';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let notesData = [];
+        const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
+        let highestZ = 1;
+
+        // --- АВТОРИЗАЦИЯ ---
+        async function checkSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                document.getElementById('auth-overlay').style.display = 'none';
+                loadNotes();
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('auth-error');
+            
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            
+            if (error) {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = error.message;
+            } else {
+                errorDiv.style.display = 'none';
+                document.getElementById('auth-overlay').style.opacity = '0';
+                setTimeout(() => document.getElementById('auth-overlay').style.display = 'none', 500);
+                loadNotes();
+            }
+        }
+
+        async function logout() {
+            await supabase.auth.signOut();
+            window.location.reload();
+        }
+
+        checkSession();
+
+        // --- БАЗА ДАННЫХ ---
+        async function loadNotes() {
+            const { data, error } = await supabase.from('fridge_notes').select('*').eq('is_deleted', false);
+            if (!error && data) {
+                notesData = data;
+                renderNotes();
+            }
+        }
+
+        async function saveNoteToDB(noteInfo) {
+            await supabase.from('fridge_notes').upsert([{
+                id: noteInfo.id,
+                text_content: noteInfo.text_content,
+                x_pos: noteInfo.x_pos,
+                y_pos: noteInfo.y_pos,
+                rotation: noteInfo.rotation,
+                color: noteInfo.color,
+                is_deleted: noteInfo.is_deleted
+            }]);
+        }
+
+        // --- ЛОГИКА КАМЕРЫ ---
+        const roomScene = document.getElementById('room-scene');
+        const fridgeScene = document.getElementById('fridge-scene');
+
+        function zoomToFridge() {
+            roomScene.style.transform = 'scale(4) translateY(20%)';
+            roomScene.style.opacity = '0';
+            setTimeout(() => {
+                fridgeScene.style.opacity = '1';
+                fridgeScene.style.pointerEvents = 'auto';
+            }, 600);
+        }
+
+        function zoomOut() {
+            fridgeScene.style.opacity = '0';
+            fridgeScene.style.pointerEvents = 'none';
+            setTimeout(() => {
+                roomScene.style.transform = 'scale(1) translateY(0)';
+                roomScene.style.opacity = '1';
+            }, 500);
+        }
+
+        // --- ЛОГИКА СТИКЕРОВ ---
+        const container = document.getElementById('notes-container');
+
+        function renderNotes() {
+            container.innerHTML = '';
+            notesData.forEach(note => createNoteDOM(note));
+        }
+
+        function createNoteDOM(noteInfo) {
+            const note = document.createElement('div');
+            note.className = 'draggable note';
+            note.style.backgroundColor = noteInfo.color;
+            note.style.left = noteInfo.x_pos + 'px';
+            note.style.top = noteInfo.y_pos + 'px';
+            note.dataset.id = noteInfo.id;
+            note.style.transform = `rotate(${noteInfo.rotation}deg)`;
+            
+            note.innerHTML = `
+                <button class="delete-btn" onclick="deleteNote('${noteInfo.id}')">✖</button>
+                <div class="editable" contenteditable="true" spellcheck="false">${noteInfo.text_content}</div>
+            `;
+            
+            container.appendChild(note);
+            makeDraggable(note, noteInfo);
+
+            let timeout;
+            const editable = note.querySelector('.editable');
+            editable.addEventListener('input', (e) => {
+                clearTimeout(timeout);
+                noteInfo.text_content = e.target.innerHTML;
+                timeout = setTimeout(() => saveNoteToDB(noteInfo), 1000);
+            });
+        }
+
+        async function addNote() {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const newNote = {
+                id: crypto.randomUUID(),
+                text_content: 'Новая записка...',
+                x_pos: Math.floor(Math.random() * (window.innerWidth - 300)) + 50,
+                y_pos: Math.floor(Math.random() * (window.innerHeight - 300)) + 100,
+                rotation: Math.floor(Math.random() * 10) - 5,
+                color: color,
+                is_deleted: false
+            };
+
+            notesData.push(newNote);
+            createNoteDOM(newNote);
+            await saveNoteToDB(newNote);
+        }
+
+        async function deleteNote(id) {
+            const note = notesData.find(n => n.id === id);
+            if(note) {
+                note.is_deleted = true;
+                const domEl = document.querySelector(`.note[data-id="${id}"]`);
+                if(domEl) domEl.remove();
+                await saveNoteToDB(note);
+            }
+        }
+
+        // --- ЛОГИКА ПЕРЕТАСКИВАНИЯ ---
+        function makeDraggable(element, noteInfo) {
+            let isDragging = false, startX, startY, initialX, initialY;
+
+            element.addEventListener('pointerdown', (e) => {
+                if(e.target.classList.contains('delete-btn') || e.target.classList.contains('editable')) return;
+                isDragging = true;
+                highestZ++; element.style.zIndex = highestZ;
+                element.style.transform = `scale(1.05) rotate(${noteInfo.rotation}deg)`;
+                element.style.boxShadow = '5px 15px 25px rgba(0,0,0,0.3)';
+                startX = e.clientX; startY = e.clientY;
+                initialX = element.offsetLeft; initialY = element.offsetTop;
+                element.setPointerCapture(e.pointerId);
+            });
+
+            element.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                element.style.left = initialX + (e.clientX - startX) + 'px';
+                element.style.top = initialY + (e.clientY - startY) + 'px';
+            });
+
+            element.addEventListener('pointerup', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                element.style.transform = `scale(1) rotate(${noteInfo.rotation}deg)`;
+                element.style.boxShadow = '2px 4px 10px rgba(0,0,0,0.2)';
+                element.releasePointerCapture(e.pointerId);
+                
+                noteInfo.x_pos = parseInt(element.style.left);
+                noteInfo.y_pos = parseInt(element.style.top);
+                saveNoteToDB(noteInfo); 
+            });
+        }
+    </script>
+</body>
+</html>
