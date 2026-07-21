@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Caveat', cursive; overflow: hidden; background: #222; }
+        body { font-family: 'Caveat', cursive; background: #222; }
 
         /* --- ЭКРАН АВТОРИЗАЦИИ --- */
         #auth-overlay {
@@ -28,11 +28,11 @@
 
         /* --- СЦЕНА 1: КОМНАТА --- */
         #room-scene {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(to bottom, #f0e2d3 65%, #6e4b33 65%);
             display: flex; justify-content: center; align-items: flex-end;
             transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1s ease;
-            transform-origin: center 60%; z-index: 10;
+            transform-origin: center 60%; z-index: 10; overflow: hidden;
         }
         .fridge-shadow { position: absolute; bottom: 50px; width: 320px; height: 20px; background: rgba(0,0,0,0.3); border-radius: 50%; filter: blur(10px); }
         .fridge-object {
@@ -50,13 +50,14 @@
             border-radius: 13px; overflow: hidden; pointer-events: none; z-index: 2;
         }
 
-        /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА --- */
+        /* --- СЦЕНА 2: ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА (С прокруткой) --- */
         #fridge-scene {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #e8ecef; opacity: 0; pointer-events: none; transition: opacity 1s ease; z-index: 20; overflow: hidden;
+            position: absolute; top: 0; left: 0; width: 100vw; min-height: 150vh;
+            background: #e8ecef; opacity: 0; pointer-events: none; transition: opacity 1s ease; z-index: 20;
+            overflow-y: auto; padding-top: 100px; padding-bottom: 100px;
         }
         .controls {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(255,255,255,0.9); padding: 10px 20px; border-radius: 30px; 
             display: flex; gap: 15px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
@@ -65,15 +66,25 @@
         button.btn-red { background: #d32f2f; }
         button.btn-red:hover { background: #b71c1c; }
 
-        /* --- СТИКЕРЫ --- */
-        .draggable { position: absolute; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; user-select: none; }
-        .draggable:active { cursor: grabbing; }
-        .note {
-            padding: 35px 20px 20px; box-shadow: 2px 4px 10px rgba(0,0,0,0.2);
-            font-size: 24px; line-height: 1.2; color: #333; position: relative;
-            resize: both; overflow: auto; display: flex; flex-direction: column;
+        /* --- СЕТКА СТИКЕРОВ --- */
+        #notes-container {
+            width: 90%; max-width: 1200px; margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 25px;
+            padding: 20px;
         }
-        .note::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        .note {
+            background-color: #fdf5c9;
+            padding: 35px 20px 20px; 
+            box-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+            font-size: 24px; line-height: 1.2; color: #333; 
+            position: relative;
+            border-radius: 4px;
+            display: flex; flex-direction: column;
+            min-height: 220px;
+        }
         
         .note::before {
             content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
@@ -88,7 +99,7 @@
         
         .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; }
         .note-body { flex-grow: 1; min-height: 30px; }
-        .note-photo { width: 100%; max-height: 50vh; object-fit: contain; margin-bottom: 10px; border-radius: 5px; pointer-events: none; }
+        .note-photo { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 10px; border-radius: 5px; }
 
         /* Чекбоксы */
         .checklist-container { display: flex; flex-direction: column; gap: 8px; margin-top: 5px; }
@@ -144,7 +155,6 @@
 
         let notesData = [];
         const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
-        let highestZ = 1;
 
         async function checkSession() {
             const { data: { session } } = await db.auth.getSession();
@@ -187,11 +197,7 @@
                 text_content: noteInfo.text_content || '',
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
-                x_pos: noteInfo.x_pos,
-                y_pos: noteInfo.y_pos,
-                rotation: noteInfo.rotation,
-                width: noteInfo.width || 220,
-                height: noteInfo.height || 200,
+                rotation: noteInfo.rotation || 0,
                 color: noteInfo.color,
                 is_deleted: noteInfo.is_deleted
             }]);
@@ -216,22 +222,19 @@
             const miniContainer = document.getElementById('mini-notes-container');
             miniContainer.innerHTML = '';
             
-            // Базовые размеры большой сцены для точного соотнесения
-            const maxX = Math.max(window.innerWidth, 1000);
-            const maxY = Math.max(window.innerHeight, 800);
-            const scaleX = 300 / maxX;
-            const scaleY = 500 / maxY;
-            
-            notesData.forEach(n => {
+            notesData.forEach((n, index) => {
                 if(n.is_deleted) return;
                 const dot = document.createElement('div');
                 dot.style.position = 'absolute';
-                dot.style.left = Math.min(Math.max((n.x_pos || 50) * scaleX, 0), 280) + 'px';
-                dot.style.top = Math.min(Math.max((n.y_pos || 50) * scaleY, 0), 480) + 'px';
-                dot.style.width = Math.min((n.width || 220) * scaleX, 100) + 'px';
-                dot.style.height = Math.min((n.height || 200) * scaleY, 100) + 'px';
+                // Располагаем точки на мини-холодильнике аккуратной сеткой
+                const col = index % 2;
+                const row = Math.floor(index / 2);
+                dot.style.left = (20 + col * 130) + 'px';
+                dot.style.top = (40 + row * 100) + 'px';
+                dot.style.width = '110px';
+                dot.style.height = '85px';
                 dot.style.backgroundColor = n.color;
-                dot.style.transform = `rotate(${n.rotation}deg)`;
+                dot.style.transform = `rotate(${n.rotation || 0}deg)`;
                 dot.style.boxShadow = '1px 1px 2px rgba(0,0,0,0.3)';
                 dot.style.borderRadius = '2px';
                 miniContainer.appendChild(dot);
@@ -250,12 +253,8 @@
 
         function createNoteDOM(noteInfo) {
             const note = document.createElement('div');
-            note.className = 'draggable note';
+            note.className = 'note';
             note.style.backgroundColor = noteInfo.color;
-            note.style.left = (noteInfo.x_pos || 50) + 'px';
-            note.style.top = (noteInfo.y_pos || 50) + 'px';
-            note.style.width = (noteInfo.width || 220) + 'px';
-            note.style.height = (noteInfo.height || 200) + 'px';
             note.style.transform = `rotate(${noteInfo.rotation || 0}deg)`;
             note.dataset.id = noteInfo.id;
             
@@ -276,7 +275,6 @@
             `;
             
             container.appendChild(note);
-            makeDraggable(note, noteInfo);
 
             if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 renderChecklist(noteInfo);
@@ -293,14 +291,6 @@
                     }
                 });
             });
-
-            let resizeTimeout;
-            new ResizeObserver(() => {
-                clearTimeout(resizeTimeout);
-                noteInfo.width = note.offsetWidth;
-                noteInfo.height = note.offsetHeight;
-                resizeTimeout = setTimeout(() => saveNoteToDB(noteInfo), 500);
-            }).observe(note);
         }
 
         function renderChecklist(noteInfo) {
@@ -359,17 +349,13 @@
                 text_content: imageUrl || type === 'list' ? '' : 'Новая записка...',
                 image_url: imageUrl,
                 list_items: listItems,
-                x_pos: Math.floor(Math.random() * (window.innerWidth - 400)) + 50,
-                y_pos: Math.floor(Math.random() * (window.innerHeight - 400)) + 50,
-                rotation: Math.floor(Math.random() * 10) - 5,
-                width: imageUrl ? 260 : 220,
-                height: imageUrl ? 320 : 200,
+                rotation: Math.floor(Math.random() * 6) - 3,
                 color: color,
                 is_deleted: false
             };
 
             notesData.push(newNote);
-            createNoteDOM(newNote);
+            renderNotes();
             await saveNoteToDB(newNote);
         }
 
@@ -390,48 +376,9 @@
             const note = notesData.find(n => n.id === id);
             if(note) {
                 note.is_deleted = true;
-                const domEl = document.querySelector(`.note[data-id="${id}"]`);
-                if(domEl) domEl.remove();
+                renderNotes();
                 await saveNoteToDB(note);
             }
-        }
-
-        function makeDraggable(element, noteInfo) {
-            let isDragging = false, startX, startY, initialX, initialY;
-
-            element.addEventListener('pointerdown', (e) => {
-                if(e.target.classList.contains('delete-btn') || e.target.classList.contains('editable') || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-                
-                const rect = element.getBoundingClientRect();
-                const isResizeHandle = (e.clientX - rect.left) > rect.width - 25 && (e.clientY - rect.top) > rect.height - 25;
-                if(isResizeHandle) return;
-
-                isDragging = true;
-                highestZ++; element.style.zIndex = highestZ;
-                element.style.transform = `scale(1.05) rotate(${noteInfo.rotation}deg)`;
-                element.style.boxShadow = '5px 15px 25px rgba(0,0,0,0.3)';
-                startX = e.clientX; startY = e.clientY;
-                initialX = element.offsetLeft; initialY = element.offsetTop;
-                element.setPointerCapture(e.pointerId);
-            });
-
-            element.addEventListener('pointermove', (e) => {
-                if (!isDragging) return;
-                element.style.left = initialX + (e.clientX - startX) + 'px';
-                element.style.top = initialY + (e.clientY - startY) + 'px';
-            });
-
-            element.addEventListener('pointerup', (e) => {
-                if (!isDragging) return;
-                isDragging = false;
-                element.style.transform = `scale(1) rotate(${noteInfo.rotation}deg)`;
-                element.style.boxShadow = '2px 4px 10px rgba(0,0,0,0.2)';
-                element.releasePointerCapture(e.pointerId);
-                
-                noteInfo.x_pos = parseInt(element.style.left);
-                noteInfo.y_pos = parseInt(element.style.top);
-                saveNoteToDB(noteInfo); 
-            });
         }
     </script>
 </body>
