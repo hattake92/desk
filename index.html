@@ -56,12 +56,11 @@
         button.btn-red { background: #d32f2f; }
         button.btn-red:hover { background: #b71c1c; }
 
-        /* --- СЕТКА СТИКЕРОВ --- */
+        /* --- КОЛОНОЧНАЯ СЕТКА (КАЖДЫЙ СТИКЕР ЖИВЕТ СВОЕЙ ЖИЗНЬЮ) --- */
         #notes-container {
             width: 92%; max-width: 1200px; margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 20px;
+            column-count: 4;
+            column-gap: 20px;
             padding: 10px;
         }
 
@@ -72,8 +71,11 @@
             font-size: 24px; line-height: 1.2; 
             position: relative;
             border-radius: 4px;
-            display: flex; flex-direction: column;
-            min-height: 220px;
+            display: inline-block; /* Важно для колонок */
+            width: 100%;
+            margin-bottom: 20px;
+            break-inside: avoid; /* Запрещает разрыв карточки пополам между колонками */
+            min-height: 200px;
         }
         
         .note::before {
@@ -99,10 +101,13 @@
         .add-item-btn { background: rgba(0,0,0,0.05); border: none; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-family: 'Caveat', cursive; font-size: 18px; margin-top: 10px; align-self: flex-start; }
         .add-item-btn:hover { background: rgba(0,0,0,0.1); }
 
-        @media (max-width: 600px) {
+        /* Адаптивность колонок под экраны */
+        @media (max-width: 1024px) { #notes-container { column-count: 3; } }
+        @media (max-width: 768px) { #notes-container { column-count: 2; } }
+        @media (max-width: 500px) {
+            #notes-container { column-count: 1; }
             .controls { padding: 6px 10px; gap: 5px; top: 10px; }
             button.btn { padding: 6px 10px; font-size: 12px; }
-            #notes-container { grid-template-columns: 1fr; padding: 5px; gap: 15px; }
             #fridge-scene { padding-top: 75px; }
         }
     </style>
@@ -149,9 +154,9 @@
 
         function getTextColor(email) {
             if (email && email.toLowerCase().includes('sabina')) {
-                return '#7c2180'; // Сливовый для Сабины
+                return '#7c2180'; 
             }
-            return '#004019'; // Темно-зеленый для Эмиля
+            return '#004019'; 
         }
 
         async function checkSession() {
@@ -203,7 +208,6 @@
             }
         }
 
-        // Обработка нажатия Enter на полях ввода при логине
         document.getElementById('email').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') login();
         });
@@ -310,7 +314,6 @@
                 chunkEl.spellcheck = false;
                 chunkEl.innerText = chunk.text;
                 
-                // Каждая отдельная строка окрашена цветом создавшего ее автора!
                 chunkEl.style.color = getTextColor(chunk.author);
 
                 chunkEl.oninput = (e) => {
@@ -326,7 +329,6 @@
             const note = notesData.find(n => n.id === id);
             if(note) {
                 if(!note.text_chunks) note.text_chunks = [];
-                // Создаем новый независимый блок текста от имени текущего юзера
                 note.text_chunks.push({ text: '', author: currentUserEmail });
                 saveNoteToDB(note);
                 renderNotes();
