@@ -80,14 +80,14 @@
             content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
             width: 80px; height: 25px; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(2px); border-radius: 2px;
         }
-        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; color: #333; }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; }
         
-        .editable { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; }
-        .editable:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
-        .editable:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+        .editable-line { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; min-height: 28px; }
+        .editable-line:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
+        .editable-line:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
         
-        .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; }
-        .note-body { flex-grow: 1; min-height: 30px; }
+        .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; }
+        .note-body-container { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
         .note-photo { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 10px; border-radius: 5px; }
 
         /* Чекбоксы */
@@ -147,12 +147,11 @@
         const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
         let currentUserEmail = '';
 
-        // Функция точного цвета: Эмиль — зеленый, Сабина — сливовый
         function getTextColor(email) {
             if (email && email.toLowerCase().includes('sabina')) {
-                return '#7c2180'; 
+                return '#7c2180'; // Сливовый для Сабины
             }
-            return '#004019'; 
+            return '#004019'; // Темно-зеленый для Эмиля
         }
 
         async function checkSession() {
@@ -229,6 +228,7 @@
                 id: noteInfo.id,
                 title: noteInfo.title || '',
                 text_content: noteInfo.text_content || '',
+                text_lines: noteInfo.text_lines || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
@@ -243,6 +243,7 @@
 
         function renderNotes() {
             container.innerHTML = '';
+            notesData.updateDOM = true;
             notesData.forEach(note => {
                 if(!note.is_deleted) createNoteDOM(note);
             });
@@ -254,22 +255,26 @@
             note.style.backgroundColor = noteInfo.color;
             note.style.transform = `rotate(${noteInfo.rotation || 0}deg)`;
             
-            // Цвет текста ЗАГОЛОВКА и ОСНОВНОГО ТЕКСТА строго по автору ЭТОЙ карточки
-            const authorColor = getTextColor(noteInfo.author_email);
+            const titleColor = getTextColor(noteInfo.author_email);
             
             let contentHtml = '';
             if (noteInfo.image_url) {
                 contentHtml = `<img src="${noteInfo.image_url}" class="note-photo">`;
             } else if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
-                               <button class="add-item-btn" onclick="window.addListItem('${noteInfo.id}')" style="color: ${authorColor}">+ Пункт</button>`;
+                               <button class="add-item-btn" onclick="window.addListItem('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Пункт</button>`;
             } else {
-                contentHtml = `<div class="editable note-body" contenteditable="true" spellcheck="false" data-field="text_content" placeholder="Текст..." style="color: ${authorColor}">${noteInfo.text_content || ''}</div>`;
+                // Если текст разбит по строкам-авторам, рендерим каждую строку отдельно ее цветом!
+                if (!noteInfo.text_lines || noteInfo.text_lines.length === 0) {
+                    noteInfo.text_lines = [{ text: noteInfo.text_content || '', author: noteInfo.author_email || currentUserEmail }];
+                }
+                contentHtml = `<div class="note-body-container" id="lines-container-${noteInfo.id}"></div>
+                               <button class="add-item-btn" onclick="window.addTextLine('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Строка</button>`;
             }
 
             note.innerHTML = `
-                <button class="delete-btn" onclick="window.deleteNote('${noteInfo.id}')">✖</button>
-                <div class="editable note-title" contenteditable="true" spellcheck="false" data-field="title" placeholder="Заголовок..." style="color: ${authorColor}">${noteInfo.title || ''}</div>
+                <button class="delete-btn" onclick="window.deleteNote('${noteInfo.id}')" style="color: ${titleColor}">✖</button>
+                <div class="editable-line note-title" contenteditable="true" spellcheck="false" placeholder="Заголовок..." style="color: ${titleColor}" oninput="window.updateTitle('${noteInfo.id}', this.innerText)">${noteInfo.title || ''}</div>
                 ${contentHtml}
             `;
             
@@ -277,20 +282,57 @@
 
             if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 renderChecklist(noteInfo);
+            } else if (!noteInfo.image_url) {
+                renderTextLines(noteInfo);
             }
+        }
 
-            let textTimeout;
-            note.querySelectorAll('.editable').forEach(el => {
-                el.addEventListener('input', (e) => {
-                    clearTimeout(textTimeout);
-                    const field = e.target.dataset.field;
-                    if(field) {
-                        noteInfo[field] = e.target.innerHTML;
-                        textTimeout = setTimeout(() => saveNoteToDB(noteInfo), 1000);
-                    }
-                });
+        function renderTextLines(noteInfo) {
+            const linesContainer = document.getElementById(`lines-container-${noteInfo.id}`);
+            if(!linesContainer) return;
+            linesContainer.innerHTML = '';
+
+            noteInfo.text_lines.forEach((line, index) => {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'editable-line';
+                lineDiv.contentEditable = true;
+                lineDiv.spellcheck = false;
+                lineDiv.innerText = line.text;
+                
+                // Каждая строка окрашена цветом НАПИСАВШЕГО ее человека!
+                const lineColor = getTextColor(line.author);
+                lineDiv.style.color = lineColor;
+
+                lineDiv.oninput = (e) => {
+                    noteInfo.text_lines[index].text = e.target.innerText;
+                    // Если кто-то дописывает, строка автоматически закрепляется за ним
+                    noteInfo.text_lines[index].author = currentUserEmail;
+                    lineDiv.style.color = getTextColor(currentUserEmail);
+                    saveNoteToDBQuiet(noteInfo);
+                };
+
+                linesContainer.appendChild(lineDiv);
             });
         }
+
+        window.addTextLine = function(id) {
+            const note = notesData.find(n => n.id === id);
+            if(note) {
+                if(!note.text_lines) note.text_lines = [];
+                // Новая строка для текущего пользователя (с его цветом)
+                note.text_lines.push({ text: '', author: currentUserEmail });
+                saveNoteToDB(note);
+                renderNotes();
+            }
+        };
+
+        window.updateTitle = function(id, text) {
+            const note = notesData.find(n => n.id === id);
+            if(note) {
+                note.title = text;
+                saveNoteToDBQuiet(note);
+            }
+        };
 
         function renderChecklist(noteInfo) {
             const listContainer = document.getElementById(`checklist-${noteInfo.id}`);
@@ -300,8 +342,6 @@
             noteInfo.list_items.forEach((item, index) => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = `checklist-item ${item.completed ? 'completed' : ''}`;
-                
-                // Каждая строка в списке красится в цвет автора этой конкретной строки!
                 const itemColor = getTextColor(item.author || noteInfo.author_email);
 
                 itemDiv.innerHTML = `
@@ -316,7 +356,6 @@
             const note = notesData.find(n => n.id === id);
             if(note) {
                 if(!note.list_items) note.list_items = [];
-                // Новый пункт записывает текущего пользователя как автора этого пункта
                 note.list_items.push({ text: '', completed: false, author: currentUserEmail });
                 saveNoteToDB(note);
                 renderNotes();
@@ -335,11 +374,27 @@
             const note = notesData.find(n => n.id === id);
             if(note && note.list_items[index]) {
                 note.list_items[index].text = text;
-                // Автоматически обновляем автора строки на того, кто ее сейчас редактирует/пишет
                 note.list_items[index].author = currentUserEmail;
                 saveNoteToDBQuiet(note);
             }
         };
+
+        async function saveNoteToDB(noteInfo) {
+            noteInfo.updated_at = new Date().toISOString();
+            await db.from('fridge_notes').upsert([{
+                id: noteInfo.id,
+                title: noteInfo.title || '',
+                text_content: noteInfo.text_content || '',
+                text_lines: noteInfo.text_lines || [],
+                image_url: noteInfo.image_url || '',
+                list_items: noteInfo.list_items || [],
+                rotation: noteInfo.rotation || 0,
+                color: noteInfo.color,
+                author_email: noteInfo.author_email || currentUserEmail,
+                updated_at: noteInfo.updated_at,
+                is_deleted: noteInfo.is_deleted
+            }]);
+        }
 
         async function saveNoteToDBQuiet(noteInfo) {
             noteInfo.updated_at = new Date().toISOString();
@@ -347,6 +402,7 @@
                 id: noteInfo.id,
                 title: noteInfo.title || '',
                 text_content: noteInfo.text_content || '',
+                text_lines: noteInfo.text_lines || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
@@ -360,19 +416,23 @@
         window.addNote = async function(type, imageUrl = '') {
             const color = colors[Math.floor(Math.random() * colors.length)];
             let listItems = [];
+            let textLines = [];
             if(type === 'list') {
                 listItems = [{ text: 'Купить молоко', completed: false, author: currentUserEmail }];
+            } else {
+                textLines = [{ text: 'Новая записка...', author: currentUserEmail }];
             }
 
             const newNote = {
                 id: crypto.randomUUID(),
                 title: type === 'list' ? 'Список' : '',
-                text_content: imageUrl || type === 'list' ? '' : 'Новая записка...',
+                text_content: '',
+                text_lines: textLines,
                 image_url: imageUrl,
                 list_items: listItems,
                 rotation: Math.floor(Math.random() * 6) - 3,
                 color: color,
-                author_email: currentUserEmail, // Автор карточки — ты
+                author_email: currentUserEmail,
                 updated_at: new Date().toISOString(),
                 is_deleted: false
             };
