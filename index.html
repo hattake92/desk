@@ -40,7 +40,7 @@
         #welcome-overlay.active { opacity: 1; pointer-events: auto; }
         #welcome-overlay.active .welcome-message { transform: scale(1); }
 
-        /* --- ПОВЕРХНОСТЬ ХОЛОДИЛЬНИКА (ДОСКА) --- */
+        /* --- ДОСКА СО СТИКЕРАМИ --- */
         #fridge-scene {
             width: 100vw; min-height: 100vh;
             background: #e8ecef; padding-top: 90px; padding-bottom: 60px;
@@ -82,12 +82,11 @@
         }
         .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; color: #333; }
         
-        .editable-line { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; min-height: 28px; }
-        .editable-line:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
-        .editable-line:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+        .editable-area { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; min-height: 50px; flex-grow: 1; }
+        .editable-area:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
+        .editable-area:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
         
-        .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; }
-        .note-body-container { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
+        .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; outline: none; }
         .note-photo { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 10px; border-radius: 5px; }
 
         /* Чекбоксы */
@@ -216,10 +215,10 @@
                 .eq('is_deleted', false)
                 .order('updated_at', { ascending: false });
             if (!error && data) {
-                // Конвертируем старые тексты (если нет text_lines) в новый построчный формат
+                // Если у старых записей нет массива text_chunks, создадим его из text_content
                 notesData = data.map(note => {
-                    if ((!note.text_lines || note.text_lines.length === 0) && note.text_content) {
-                        note.text_lines = [{ text: note.text_content, author: note.author_email || 'emil@ourdesk.com' }];
+                    if ((!note.text_chunks || note.text_chunks.length === 0) && note.text_content) {
+                        note.text_chunks = [{ text: note.text_content, author: note.author_email || 'emil@ourdesk.com' }];
                     }
                     return note;
                 });
@@ -233,8 +232,8 @@
             await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
                 title: noteInfo.title || '',
-                text_content: '', // Очищаем старое поле во избежание дублирования
-                text_lines: noteInfo.text_lines || [],
+                text_content: '',
+                text_chunks: noteInfo.text_chunks || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
@@ -269,16 +268,22 @@
                 contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
                                <button class="add-item-btn" onclick="window.addListItem('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Пункт</button>`;
             } else {
-                if (!noteInfo.text_lines || noteInfo.text_lines.length === 0) {
-                    noteInfo.text_lines = [{ text: '', author: currentUserEmail }];
+                if (!noteInfo.text_chunks || noteInfo.text_chunks.length === 0) {
+                    noteInfo.text_chunks = [{ text: '', author: currentUserEmail }];
                 }
-                contentHtml = `<div class="note-body-container" id="lines-container-${noteInfo.id}"></div>
-                               <button class="add-item-btn" onclick="window.addTextLine('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Строка</button>`;
+                // Рендерим по кусочкам с сохранением персональных цветов каждого автора
+                let assembledHtml = noteInfo.text_chunks.map((chunk, index) => {
+                    const chunkColor = getTextColor(chunk.author);
+                    return `<span contenteditable="true" spellcheck="false" class="editable-chunk" data-chunk-index="${index}" style="color: ${chunkColor};">${escapeHtml(chunk.text)}</span>`;
+                }).join('');
+
+                contentHtml = `<div class="editable-area" id="body-area-${noteInfo.id}">${assembledHtml}</div>
+                               <button class="add-item-btn" onclick="window.appendNewText('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Дописать</button>`;
             }
 
             note.innerHTML = `
                 <button class="delete-btn" onclick="window.deleteNote('${noteInfo.id}')" style="color: ${titleColor}">✖</button>
-                <div class="editable-line note-title" contenteditable="true" spellcheck="false" placeholder="Заголовок..." style="color: ${titleColor}" oninput="window.updateTitle('${noteInfo.id}', this.innerText)">${noteInfo.title || ''}</div>
+                <div class="note-title" contenteditable="true" spellcheck="false" placeholder="Заголовок..." style="color: ${titleColor}" oninput="window.updateTitle('${noteInfo.id}', this.innerText)">${noteInfo.title || ''}</div>
                 ${contentHtml}
             `;
             
@@ -287,41 +292,37 @@
             if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 renderChecklist(noteInfo);
             } else if (!noteInfo.image_url) {
-                renderTextLines(noteInfo);
+                setupTextBinding(noteInfo);
             }
         }
 
-        function renderTextLines(noteInfo) {
-            const linesContainer = document.getElementById(`lines-container-${noteInfo.id}`);
-            if(!linesContainer) return;
-            linesContainer.innerHTML = '';
+        // Инструмент защиты от слома верстки
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
 
-            noteInfo.text_lines.forEach((line, index) => {
-                const lineDiv = document.createElement('div');
-                lineDiv.className = 'editable-line';
-                lineDiv.contentEditable = true;
-                lineDiv.spellcheck = false;
-                lineDiv.innerText = line.text;
-                
-                // Строка строго окрашена в цвет автора этой строки!
-                lineDiv.style.color = getTextColor(line.author);
+        // Привязка ввода прямо к конкретным кусочкам текста
+        function setupTextBinding(noteInfo) {
+            const bodyArea = document.getElementById(`body-area-${noteInfo.id}`);
+            if(!bodyArea) return;
 
-                lineDiv.oninput = (e) => {
-                    // Убираем случайные теги, оставляем только чистый текст
-                    noteInfo.text_lines[index].text = e.target.innerText;
+            bodyArea.querySelectorAll('.editable-chunk').forEach(chunkEl => {
+                chunkEl.addEventListener('input', (e) => {
+                    const idx = parseInt(e.target.dataset.chunkIndex);
+                    // Когда этот автор правит свой кусочек, текст обновляется, а цвет остается его
+                    noteInfo.text_chunks[idx].text = e.target.innerText;
                     saveNoteToDBQuiet(noteInfo);
-                };
-
-                linesContainer.appendChild(lineDiv);
+                });
             });
         }
 
-        window.addTextLine = function(id) {
+        // Кнопка добавления нового блока текста от имени вошедшего пользователя
+        window.appendNewText = function(id) {
             const note = notesData.find(n => n.id === id);
             if(note) {
-                if(!note.text_lines) note.text_lines = [];
-                // Новая строка создается с автором — текущим пользователем (и покрасится в его цвет)
-                note.text_lines.push({ text: '', author: currentUserEmail });
+                if(!note.text_chunks) note.text_chunks = [];
+                // Добавляем новый кусочек от имени текущего юзера (с его цветом) со знаком пробела/переноса
+                note.text_chunks.push({ text: '\n', author: currentUserEmail });
                 saveNoteToDB(note);
                 renderNotes();
             }
@@ -330,7 +331,7 @@
         window.updateTitle = function(id, text) {
             const note = notesData.find(n => n.id === id);
             if(note) {
-                note.title = text.replace(/<[^>]*>/g, ''); // Защита от html-тегов
+                note.title = text.replace(/<[^>]*>/g, '');
                 saveNoteToDBQuiet(note);
             }
         };
@@ -386,7 +387,7 @@
                 id: noteInfo.id,
                 title: noteInfo.title || '',
                 text_content: '',
-                text_lines: noteInfo.text_lines || [],
+                text_chunks: noteInfo.text_chunks || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
@@ -403,7 +404,7 @@
                 id: noteInfo.id,
                 title: noteInfo.title || '',
                 text_content: '',
-                text_lines: noteInfo.text_lines || [],
+                text_chunks: noteInfo.text_chunks || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
@@ -417,17 +418,17 @@
         window.addNote = async function(type, imageUrl = '') {
             const color = colors[Math.floor(Math.random() * colors.length)];
             let listItems = [];
-            let textLines = [];
+            let textChunks = [];
             if(type === 'list') {
                 listItems = [{ text: 'Купить молоко', completed: false, author: currentUserEmail }];
             } else {
-                textLines = [{ text: 'Новая записка...', author: currentUserEmail }];
+                textChunks = [{ text: 'Новая записка...', author: currentUserEmail }];
             }
 
             const newNote = {
                 id: crypto.randomUUID(),
                 title: type === 'list' ? 'Список' : '',
-                text_lines: textLines,
+                text_chunks: textChunks,
                 image_url: imageUrl,
                 list_items: listItems,
                 rotation: Math.floor(Math.random() * 6) - 3,
