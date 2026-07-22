@@ -80,7 +80,7 @@
             content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
             width: 80px; height: 25px; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(2px); border-radius: 2px;
         }
-        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; color: #333; }
         
         .editable-line { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; min-height: 28px; }
         .editable-line:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
@@ -216,7 +216,13 @@
                 .eq('is_deleted', false)
                 .order('updated_at', { ascending: false });
             if (!error && data) {
-                notesData = data;
+                // Конвертируем старые тексты (если нет text_lines) в новый построчный формат
+                notesData = data.map(note => {
+                    if ((!note.text_lines || note.text_lines.length === 0) && note.text_content) {
+                        note.text_lines = [{ text: note.text_content, author: note.author_email || 'emil@ourdesk.com' }];
+                    }
+                    return note;
+                });
                 renderNotes();
             }
         }
@@ -227,7 +233,7 @@
             await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
                 title: noteInfo.title || '',
-                text_content: noteInfo.text_content || '',
+                text_content: '', // Очищаем старое поле во избежание дублирования
                 text_lines: noteInfo.text_lines || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
@@ -243,7 +249,6 @@
 
         function renderNotes() {
             container.innerHTML = '';
-            notesData.updateDOM = true;
             notesData.forEach(note => {
                 if(!note.is_deleted) createNoteDOM(note);
             });
@@ -264,9 +269,8 @@
                 contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
                                <button class="add-item-btn" onclick="window.addListItem('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Пункт</button>`;
             } else {
-                // Если текст разбит по строкам-авторам, рендерим каждую строку отдельно ее цветом!
                 if (!noteInfo.text_lines || noteInfo.text_lines.length === 0) {
-                    noteInfo.text_lines = [{ text: noteInfo.text_content || '', author: noteInfo.author_email || currentUserEmail }];
+                    noteInfo.text_lines = [{ text: '', author: currentUserEmail }];
                 }
                 contentHtml = `<div class="note-body-container" id="lines-container-${noteInfo.id}"></div>
                                <button class="add-item-btn" onclick="window.addTextLine('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Строка</button>`;
@@ -299,15 +303,12 @@
                 lineDiv.spellcheck = false;
                 lineDiv.innerText = line.text;
                 
-                // Каждая строка окрашена цветом НАПИСАВШЕГО ее человека!
-                const lineColor = getTextColor(line.author);
-                lineDiv.style.color = lineColor;
+                // Строка строго окрашена в цвет автора этой строки!
+                lineDiv.style.color = getTextColor(line.author);
 
                 lineDiv.oninput = (e) => {
+                    // Убираем случайные теги, оставляем только чистый текст
                     noteInfo.text_lines[index].text = e.target.innerText;
-                    // Если кто-то дописывает, строка автоматически закрепляется за ним
-                    noteInfo.text_lines[index].author = currentUserEmail;
-                    lineDiv.style.color = getTextColor(currentUserEmail);
                     saveNoteToDBQuiet(noteInfo);
                 };
 
@@ -319,7 +320,7 @@
             const note = notesData.find(n => n.id === id);
             if(note) {
                 if(!note.text_lines) note.text_lines = [];
-                // Новая строка для текущего пользователя (с его цветом)
+                // Новая строка создается с автором — текущим пользователем (и покрасится в его цвет)
                 note.text_lines.push({ text: '', author: currentUserEmail });
                 saveNoteToDB(note);
                 renderNotes();
@@ -329,7 +330,7 @@
         window.updateTitle = function(id, text) {
             const note = notesData.find(n => n.id === id);
             if(note) {
-                note.title = text;
+                note.title = text.replace(/<[^>]*>/g, ''); // Защита от html-тегов
                 saveNoteToDBQuiet(note);
             }
         };
@@ -384,7 +385,7 @@
             await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
                 title: noteInfo.title || '',
-                text_content: noteInfo.text_content || '',
+                text_content: '',
                 text_lines: noteInfo.text_lines || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
@@ -401,7 +402,7 @@
             await db.from('fridge_notes').upsert([{
                 id: noteInfo.id,
                 title: noteInfo.title || '',
-                text_content: noteInfo.text_content || '',
+                text_content: '',
                 text_lines: noteInfo.text_lines || [],
                 image_url: noteInfo.image_url || '',
                 list_items: noteInfo.list_items || [],
@@ -426,7 +427,6 @@
             const newNote = {
                 id: crypto.randomUUID(),
                 title: type === 'list' ? 'Список' : '',
-                text_content: '',
                 text_lines: textLines,
                 image_url: imageUrl,
                 list_items: listItems,
