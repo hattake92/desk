@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Наше место</title>
+    <title>Наш холодильник</title>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -40,6 +40,16 @@
         #welcome-overlay.active { opacity: 1; pointer-events: auto; }
         #welcome-overlay.active .welcome-message { transform: scale(1); }
 
+        /* --- МОДАЛЬНОЕ ОКНО ДЛЯ ПРОСМОТРА ФОТО --- */
+        #image-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center;
+            z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            cursor: zoom-out; padding: 20px;
+        }
+        #image-modal.active { opacity: 1; pointer-events: auto; }
+        #modal-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 5px 30px rgba(0,0,0,0.5); }
+
         /* --- ДОСКА СО СТИКЕРАМИ --- */
         #fridge-scene {
             width: 100vw; min-height: 100vh;
@@ -56,7 +66,7 @@
         button.btn-red { background: #d32f2f; }
         button.btn-red:hover { background: #b71c1c; }
 
-        /* --- КОЛОНОЧНАЯ СЕТКА (КАЖДЫЙ СТИКЕР ЖИВЕТ СВОЕЙ ЖИЗНЬЮ) --- */
+        /* --- КОЛОНОЧНАЯ СЕТКА (СТИКИИЕРИ НЕ РАСТЯГИВАЮТ ДРУГ ДРУГА) --- */
         #notes-container {
             width: 92%; max-width: 1200px; margin: 0 auto;
             column-count: 4;
@@ -71,10 +81,10 @@
             font-size: 24px; line-height: 1.2; 
             position: relative;
             border-radius: 4px;
-            display: inline-block; /* Важно для колонок */
+            display: inline-block;
             width: 100%;
             margin-bottom: 20px;
-            break-inside: avoid; /* Запрещает разрыв карточки пополам между колонками */
+            break-inside: avoid;
             min-height: 200px;
         }
         
@@ -90,7 +100,8 @@
         .editable-chunk:focus { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
         
         .note-title { font-weight: bold; font-size: 26px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px; margin-bottom: 10px; min-height: 35px; outline: none; }
-        .note-photo { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 10px; border-radius: 5px; }
+        .note-photo { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 10px; border-radius: 5px; cursor: zoom-in; transition: 0.2s; }
+        .note-photo:hover { opacity: 0.9; }
 
         /* Чекбоксы */
         .checklist-container { display: flex; flex-direction: column; gap: 8px; margin-top: 5px; }
@@ -101,7 +112,7 @@
         .add-item-btn { background: rgba(0,0,0,0.05); border: none; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-family: 'Caveat', cursive; font-size: 18px; margin-top: 10px; align-self: flex-start; }
         .add-item-btn:hover { background: rgba(0,0,0,0.1); }
 
-        /* Адаптивность колонок под экраны */
+        /* Адаптивность колонок */
         @media (max-width: 1024px) { #notes-container { column-count: 3; } }
         @media (max-width: 768px) { #notes-container { column-count: 2; } }
         @media (max-width: 500px) {
@@ -117,7 +128,7 @@
     <!-- Экран входа -->
     <div id="auth-overlay">
         <div class="auth-box">
-            <h2>Наше Место</h2>
+            <h2>Наш холодильник</h2>
             <input type="email" id="email" placeholder="Email" inputmode="email">
             <input type="password" id="password" placeholder="Пароль">
             <button onclick="login()">Войти</button>
@@ -128,6 +139,11 @@
     <!-- Приветствие -->
     <div id="welcome-overlay">
         <div class="welcome-message" id="welcome-text">Добро пожаловать!</div>
+    </div>
+
+    <!-- Модальное окно для увеличенного просмотра фото -->
+    <div id="image-modal" onclick="closeImageModal()">
+        <img id="modal-img" src="" alt="Увеличенное фото">
     </div>
 
     <!-- Доска со стикерами -->
@@ -275,7 +291,7 @@
             
             let contentHtml = '';
             if (noteInfo.image_url) {
-                contentHtml = `<img src="${noteInfo.image_url}" class="note-photo">`;
+                contentHtml = `<img src="${noteInfo.image_url}" class="note-photo" onclick="openImageModal('${noteInfo.image_url}')" title="Нажмите для увеличения">`;
             } else if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
                                <button class="add-item-btn" onclick="window.addListItem('${noteInfo.id}')" style="color: ${getTextColor(currentUserEmail)}">+ Пункт</button>`;
@@ -300,6 +316,19 @@
             } else if (!noteInfo.image_url) {
                 renderTextChunks(noteInfo);
             }
+        }
+
+        // Функции модального окна для фото
+        function openImageModal(url) {
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            modalImg.src = url;
+            modal.classList.add('active');
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('image-modal');
+            modal.classList.remove('active');
         }
 
         function renderTextChunks(noteInfo) {
