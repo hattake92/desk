@@ -80,8 +80,7 @@
             content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
             width: 80px; height: 25px; background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(2px); border-radius: 2px;
         }
-        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; color: rgba(0,0,0,0.3); font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; }
-        .delete-btn:hover { color: red; }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: transparent; border: none; font-size: 18px; cursor: pointer; z-index: 10; padding: 5px; }
         
         .editable { outline: none; cursor: text; white-space: pre-wrap; width: 100%; word-break: break-word; }
         .editable:empty:before { content: attr(placeholder); color: rgba(0,0,0,0.4); pointer-events: none; display: block; }
@@ -96,7 +95,7 @@
         .checklist-item { display: flex; align-items: center; gap: 8px; font-size: 22px; }
         .checklist-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #333; flex-shrink: 0; }
         .checklist-item input[type="text"] { border: none; background: transparent; outline: none; font-family: 'Caveat', cursive; font-size: 22px; width: 100%; }
-        .checklist-item.completed span, .checklist-item.completed input[type="text"] { text-decoration: line-through; color: #777; }
+        .checklist-item.completed span, .checklist-item.completed input[type="text"] { text-decoration: line-through; color: #777 !important; }
         .add-item-btn { background: rgba(0,0,0,0.05); border: none; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-family: 'Caveat', cursive; font-size: 18px; margin-top: 10px; align-self: flex-start; }
         .add-item-btn:hover { background: rgba(0,0,0,0.1); }
 
@@ -121,12 +120,12 @@
         </div>
     </div>
 
-    <!-- Красивое приветствие -->
+    <!-- Приветствие -->
     <div id="welcome-overlay">
         <div class="welcome-message" id="welcome-text">Добро пожаловать!</div>
     </div>
 
-    <!-- Доска со стикерами (Сцена холодильника) -->
+    <!-- Доска со стикерами -->
     <div id="fridge-scene">
         <div class="controls">
             <button class="btn" onclick="addNote('text')">+ Записка</button>
@@ -148,12 +147,12 @@
         const colors = ['#fdf5c9', '#e3fad1', '#ffdce0', '#d1f4fa'];
         let currentUserEmail = '';
 
-        // Функция определения цвета текста в зависимости от пользователя
-        function getUserTextColor(email) {
+        // Функция определения цвета по email автора
+        function getTextColor(email) {
             if (email && email.toLowerCase().includes('sabina')) {
-                return '#7c2180'; // Цвет для Сабины
+                return '#7c2180'; // Сливовый для Сабины
             }
-            return '#004019'; // Цвет для Эмиля (по умолчанию)
+            return '#004019'; // Темно-зеленый для Эмиля
         }
 
         async function checkSession() {
@@ -170,7 +169,6 @@
             const welcomeOverlay = document.getElementById('welcome-overlay');
             const welcomeText = document.getElementById('welcome-text');
 
-            // Определяем имя по email (подставь нужные части твоей почты или почты Сабины)
             let name = 'Эмилька';
             if (email.toLowerCase().includes('sabina')) {
                 name = 'Сабинка';
@@ -185,7 +183,7 @@
                     welcomeOverlay.style.display = 'none';
                     loadNotes();
                 }, 500);
-            }, 1800); // 1.8 секунды показа приветствия
+            }, 1800);
         }
 
         async function login() {
@@ -230,6 +228,7 @@
                 list_items: noteInfo.list_items || [],
                 rotation: noteInfo.rotation || 0,
                 color: noteInfo.color,
+                author_email: noteInfo.author_email || currentUserEmail,
                 is_deleted: noteInfo.is_deleted
             }]);
         }
@@ -249,32 +248,30 @@
             note.style.backgroundColor = noteInfo.color;
             note.style.transform = `rotate(${noteInfo.rotation || 0}deg)`;
             
-            // Применяем персональный цвет текста стикера
-            const textColor = getUserTextColor(currentUserEmail);
-            note.style.color = textColor;
-
-            const deleteBtnColor = textColor;
+            // Цвет текста определяется строго по автору конкретного стикера!
+            const authorColor = getTextColor(noteInfo.author_email);
+            note.style.color = authorColor;
             
             let contentHtml = '';
             if (noteInfo.image_url) {
                 contentHtml = `<img src="${noteInfo.image_url}" class="note-photo">`;
             } else if (noteInfo.list_items && noteInfo.list_items.length > 0) {
                 contentHtml = `<div class="checklist-container" id="checklist-${noteInfo.id}"></div>
-                               <button class="add-item-btn" onclick="addListItem('${noteInfo.id}')" style="color: ${textColor}">+ Пункт</button>`;
+                               <button class="add-item-btn" onclick="addListItem('${noteInfo.id}')" style="color: ${authorColor}">+ Пункт</button>`;
             } else {
-                contentHtml = `<div class="editable note-body" contenteditable="true" spellcheck="false" data-field="text_content" placeholder="Текст..." style="color: ${textColor}">${noteInfo.text_content || ''}</div>`;
+                contentHtml = `<div class="editable note-body" contenteditable="true" spellcheck="false" data-field="text_content" placeholder="Текст..." style="color: ${authorColor}">${noteInfo.text_content || ''}</div>`;
             }
 
             note.innerHTML = `
-                <button class="delete-btn" onclick="deleteNote('${noteInfo.id}')" style="color: ${deleteBtnColor}">✖</button>
-                <div class="editable note-title" contenteditable="true" spellcheck="false" data-field="title" placeholder="Заголовок..." style="color: ${textColor}">${noteInfo.title || ''}</div>
+                <button class="delete-btn" onclick="deleteNote('${noteInfo.id}')" style="color: ${authorColor}">✖</button>
+                <div class="editable note-title" contenteditable="true" spellcheck="false" data-field="title" placeholder="Заголовок..." style="color: ${authorColor}">${noteInfo.title || ''}</div>
                 ${contentHtml}
             `;
             
             container.appendChild(note);
 
             if (noteInfo.list_items && noteInfo.list_items.length > 0) {
-                renderChecklist(noteInfo, textColor);
+                renderChecklist(noteInfo, authorColor);
             }
 
             let textTimeout;
@@ -290,7 +287,7 @@
             });
         }
 
-        function renderChecklist(noteInfo, textColor) {
+        function renderChecklist(noteInfo, authorColor) {
             const listContainer = document.getElementById(`checklist-${noteInfo.id}`);
             if(!listContainer) return;
             listContainer.innerHTML = '';
@@ -300,7 +297,7 @@
                 itemDiv.className = `checklist-item ${item.completed ? 'completed' : ''}`;
                 itemDiv.innerHTML = `
                     <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleItem('${noteInfo.id}', ${index})">
-                    <input type="text" value="${item.text}" placeholder="Пункт..." style="color: ${textColor}" oninput="updateItemText('${noteInfo.id}', ${index}, this.value)">
+                    <input type="text" value="${item.text}" placeholder="Пункт..." style="color: ${authorColor}" oninput="updateItemText('${noteInfo.id}', ${index}, this.value)">
                 `;
                 listContainer.appendChild(itemDiv);
             });
@@ -348,6 +345,7 @@
                 list_items: listItems,
                 rotation: Math.floor(Math.random() * 6) - 3,
                 color: color,
+                author_email: currentUserEmail, // Запоминаем, кто создал стикер
                 is_deleted: false
             };
 
