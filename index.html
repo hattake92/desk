@@ -56,6 +56,18 @@
         #image-modal.active { opacity: 1; pointer-events: auto; }
         #modal-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 5px 30px rgba(0,0,0,0.5); }
 
+        /* --- МОДАЛЬНОЕ ОКНО КОРЗИНЫ --- */
+        #trash-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center;
+            z-index: 2000; padding: 20px;
+        }
+        .trash-content {
+            background: #fff; width: 100%; max-width: 600px; max-height: 80vh;
+            border-radius: 10px; padding: 20px; display: flex; flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
         /* --- ДОСКА СО СТИКЕРАМИ --- */
         #fridge-scene {
             position: relative; width: 100vw; min-height: 100vh;
@@ -150,12 +162,26 @@
         <img id="modal-img" src="" alt="Увеличенное фото">
     </div>
 
+    <!-- Модальное окно корзины -->
+    <div id="trash-modal">
+        <div class="trash-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="font-family: 'Caveat', cursive; font-size: 28px;">Удаленные записки</h3>
+                <button onclick="closeTrash()" style="background: none; border: none; font-size: 20px; cursor: pointer;">✖</button>
+            </div>
+            <div id="trash-container" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; padding-right: 5px;">
+                <!-- Динамический список удаленных записок -->
+            </div>
+        </div>
+    </div>
+
     <!-- Доска со стикерами на фоне background.jpg -->
     <div id="fridge-scene">
         <div class="controls">
             <button class="btn" onclick="addNote('text')">+ Записка</button>
             <button class="btn" onclick="addNote('list')">+ Список</button>
             <button class="btn" onclick="triggerPhotoUpload()">+ Фото</button>
+            <button class="btn" onclick="openTrash()">🗑 Корзина</button>
             <button class="btn btn-red" onclick="logout()">Выйти</button>
         </div>
         <div id="notes-container"></div>
@@ -322,6 +348,7 @@
             }
         }
 
+        // Управление модальным окном фото
         function openImageModal(url) {
             const modal = document.getElementById('image-modal');
             const modalImg = document.getElementById('modal-img');
@@ -333,6 +360,63 @@
             const modal = document.getElementById('image-modal');
             modal.classList.remove('active');
         }
+
+        // Управление корзиной
+        window.openTrash = async function() {
+            const trashModal = document.getElementById('trash-modal');
+            const trashContainer = document.getElementById('trash-container');
+            trashContainer.innerHTML = '<div style="text-align: center; font-size: 20px; color: #666;">Загрузка...</div>';
+            trashModal.style.display = 'flex';
+
+            const { data, error } = await db.from('fridge_notes')
+                .select('*')
+                .eq('is_deleted', true)
+                .order('updated_at', { ascending: false });
+
+            trashContainer.innerHTML = '';
+            if (error || !data || data.length === 0) {
+                trashContainer.innerHTML = '<div style="text-align: center; font-size: 22px; color: #666; margin-top: 20px;">Корзина пуста 📭</div>';
+                return;
+            }
+
+            data.forEach(note => {
+                const item = document.createElement('div');
+                item.style.background = note.color || '#fdf5c9';
+                item.style.padding = '12px 15px';
+                item.style.borderRadius = '6px';
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.alignItems = 'center';
+                item.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+
+                let previewText = note.title || (note.text_chunks && note.text_chunks[0] ? note.text_chunks[0].text : 'Фото или список');
+                if (previewText.length > 25) previewText = previewText.substring(0, 25) + '...';
+
+                item.innerHTML = `
+                    <span style="font-size: 22px; font-family: 'Caveat', cursive; color: #333;">${previewText || 'Без названия'}</span>
+                    <button class="btn" style="padding: 6px 14px; font-size: 13px;" onclick="window.restoreNote('${note.id}')">Восстановить</button>
+                `;
+                trashContainer.appendChild(item);
+            });
+        };
+
+        window.closeTrash = function() {
+            document.getElementById('trash-modal').style.display = 'none';
+        };
+
+        window.restoreNote = async function(id) {
+            const note = notesData.find(n => n.id === id);
+            if (note) {
+                note.is_deleted = false;
+                await saveNoteToDB(note);
+                loadNotes();
+                openTrash();
+            } else {
+                await db.from('fridge_notes').update({ is_deleted: false }).eq('id', id);
+                loadNotes();
+                openTrash();
+            }
+        };
 
         function renderTextChunks(noteInfo) {
             const linesContainer = document.getElementById(`lines-container-${noteInfo.id}`);
