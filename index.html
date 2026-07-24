@@ -169,9 +169,10 @@
                 <h3 style="font-family: 'Caveat', cursive; font-size: 28px;">Удаленные записки</h3>
                 <button onclick="closeTrash()" style="background: none; border: none; font-size: 20px; cursor: pointer;">✖</button>
             </div>
-            <div id="trash-container" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; padding-right: 5px;">
+            <div id="trash-container" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; margin-bottom: 15px;">
                 <!-- Динамический список удаленных записок -->
             </div>
+            <button class="btn btn-red" id="clear-trash-btn" onclick="clearTrash()" style="display: none; align-self: center;">Очистить корзину полностью</button>
         </div>
     </div>
 
@@ -365,7 +366,9 @@
         window.openTrash = async function() {
             const trashModal = document.getElementById('trash-modal');
             const trashContainer = document.getElementById('trash-container');
+            const clearBtn = document.getElementById('clear-trash-btn');
             trashContainer.innerHTML = '<div style="text-align: center; font-size: 20px; color: #666;">Загрузка...</div>';
+            clearBtn.style.display = 'none';
             trashModal.style.display = 'flex';
 
             const { data, error } = await db.from('fridge_notes')
@@ -376,8 +379,11 @@
             trashContainer.innerHTML = '';
             if (error || !data || data.length === 0) {
                 trashContainer.innerHTML = '<div style="text-align: center; font-size: 22px; color: #666; margin-top: 20px;">Корзина пуста 📭</div>';
+                clearBtn.style.display = 'none';
                 return;
             }
+
+            clearBtn.style.display = 'block'; // Показываем кнопку очистки, если есть что чистить
 
             data.forEach(note => {
                 const item = document.createElement('div');
@@ -414,6 +420,14 @@
             } else {
                 await db.from('fridge_notes').update({ is_deleted: false }).eq('id', id);
                 loadNotes();
+                openTrash();
+            }
+        };
+
+        // Полная очистка корзины (удаление навсегда из базы)
+        window.clearTrash = async function() {
+            if (confirm('Точно удалить все записки из корзины навсегда?')) {
+                await db.from('fridge_notes').delete().eq('is_deleted', true);
                 openTrash();
             }
         };
